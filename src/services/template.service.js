@@ -11,18 +11,18 @@ import { RequirementForm } from "../models/form.model.js";
 export const createTemplate = async (templateData) => {
   // Validate input data
   const validatedData = validateCreateTemplate(templateData);
-  const { projectType, version } = validatedData;
+  const { projectType, subProjectType = "default", version } = validatedData;
 
-  // Check if template with same projectType and version already exists
   const existingTemplate = await RequirementTemplate.findOne({
     projectType,
+    subProjectType,
     version,
   });
 
   if (existingTemplate) {
     throw new ApiError(
       400,
-      `Template for ${projectType} version ${version} already exists`
+      `Template for ${projectType}/${subProjectType} version ${version} already exists`
     );
   }
 
@@ -96,6 +96,35 @@ export const getTemplateByProjectType = async (projectType, version = null) => {
     throw new ApiError(
       404,
       `No active template found for project type: ${projectType}`
+    );
+  }
+
+  return template;
+};
+
+export const getTemplateByProjectAndSubType = async (
+  projectType,
+  subProjectType,
+  version = null
+) => {
+  const query = {
+    projectType: projectType.toLowerCase(),
+    subProjectType: subProjectType.toLowerCase(),
+    isActive: true,
+  };
+
+  if (version) {
+    query.version = version;
+  }
+
+  const template = await RequirementTemplate.findOne(query).sort({
+    createdAt: -1,
+  });
+
+  if (!template) {
+    throw new ApiError(
+      404,
+      `No template found for ${projectType}/${subProjectType}`
     );
   }
 
@@ -189,16 +218,34 @@ export const toggleTemplateStatus = async (templateId) => {
   return template;
 };
 
-export const getAvailableProjectTypes = async () => {
-  const projectTypes = await RequirementTemplate.distinct("projectType", {
-    isActive: true,
-  });
-  console.log("projectTypes", projectTypes);
+export const getProjectTypesWithSubTypes = async () => {
+  const templates = await RequirementTemplate.find(
+    { isActive: true },
+    { projectType: 1, subProjectType: 1, _id: 0 }
+  ).lean();
 
-  return projectTypes.sort();
+  const projectTypesMap = {};
+
+  templates.forEach((template) => {
+    const { projectType, subProjectType } = template;
+
+    if (!projectTypesMap[projectType]) {
+      projectTypesMap[projectType] = new Set();
+    }
+
+    projectTypesMap[projectType].add(subProjectType);
+  });
+
+  const result = {};
+  Object.keys(projectTypesMap)
+    .sort()
+    .forEach((projectType) => {
+      result[projectType] = Array.from(projectTypesMap[projectType]).sort();
+    });
+
+  return result;
 };
 
-// Default export for convenience
 const templateService = {
   createTemplate,
   getTemplates,
@@ -207,7 +254,8 @@ const templateService = {
   updateTemplate,
   deleteTemplate,
   toggleTemplateStatus,
-  getAvailableProjectTypes,
+  getProjectTypesWithSubTypes,
+  getTemplateByProjectAndSubType,
 };
 
 export default templateService;

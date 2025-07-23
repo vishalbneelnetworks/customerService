@@ -13,33 +13,33 @@ import mongoose from "mongoose";
 import { RequirementTemplate } from "../models/template.model.js";
 
 export const createForm = async (formData) => {
-  // 1. Basic validation
   const validatedData = validateCreateForm(formData);
+  const { projectType, subProjectType = "default", templateId } = validatedData;
 
-  const template = await RequirementTemplate.findById(validatedData.templateId);
-
-  if (!template || !template.isActive) {
-    throw new ApiError(404, "Template not found or inactive");
+  const template = await RequirementTemplate.findById(templateId);
+  if (!template) {
+    throw new ApiError(404, "Template not found");
   }
 
-  if (template.projectType !== validatedData.projectType) {
-    throw new ApiError(400, "Project type does not match template");
+  if (template.projectType !== projectType.toLowerCase()) {
+    throw new ApiError(400, "Project type doesn't match template");
   }
 
-  // 3. Validate budget and timeline (for both basic and advanced)
+  if (template.subProjectType !== subProjectType.toLowerCase()) {
+    throw new ApiError(400, "Sub-project type doesn't match template");
+  }
+
   validateAgainstTemplate(validatedData, template);
 
-  // 4. If advanced form, validate advancedInfo (pass template)
-  if (validatedData.formType === "advanced") {
-    const validatedAdvancedInfo = validateAdvancedForm(
-      validatedData.advancedInfo,
-      template
-    );
-    validatedData.advancedInfo = validatedAdvancedInfo;
+  if (validatedData.formType === "advanced" && validatedData.advancedInfo) {
+    await validateAdvancedForm({
+      ...validatedData,
+      templateId: template._id,
+    });
   }
 
-  // 5. Create form
   const form = await RequirementForm.create(validatedData);
+
   return form;
 };
 

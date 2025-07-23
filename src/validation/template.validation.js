@@ -53,6 +53,18 @@ export const createTemplateSchema = Joi.object({
         "Project type can only contain lowercase letters and underscores",
     }),
 
+  subProjectType: Joi.string()
+    .trim()
+    .lowercase()
+    .min(2)
+    .max(50)
+    .pattern(/^[a-z_]+$/)
+    .default("default")
+    .messages({
+      "string.pattern.base":
+        "Sub-project type can only contain lowercase letters and underscores",
+    }),
+
   version: Joi.string()
     .trim()
     .default("v1")
@@ -137,6 +149,16 @@ export const templateQuerySchema = Joi.object({
     .messages({
       "string.pattern.base":
         "Project type can only contain lowercase letters and underscores",
+    }),
+  subProjectType: Joi.string()
+    .trim()
+    .lowercase()
+    .min(2)
+    .max(50)
+    .pattern(/^[a-z_]+$/)
+    .messages({
+      "string.pattern.base":
+        "Sub-project type can only contain lowercase letters and underscores",
     }),
   isActive: Joi.string().valid("true", "false"),
 });

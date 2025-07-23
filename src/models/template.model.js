@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { PROJECT_TYPES, FIELD_TYPES } from "../constant.js";
+import { FIELD_TYPES } from "../constant.js";
 
 const fieldSchema = new Schema(
   {
@@ -24,6 +24,13 @@ const templateSchema = new Schema(
       type: String,
       lowercase: true,
       required: true,
+      index: true,
+    },
+    subProjectType: {
+      type: String,
+      lowercase: true,
+      required: true,
+      default: "default",
       index: true,
     },
     version: {
@@ -54,8 +61,10 @@ const templateSchema = new Schema(
   { timestamps: true }
 );
 
-templateSchema.index({ projectType: 1, version: 1 });
+templateSchema.index({ projectType: 1, subProjectType: 1, version: 1 });
+templateSchema.index({ projectType: 1, subProjectType: 1, isActive: 1 });
 templateSchema.index({ projectType: 1, isActive: 1 });
+templateSchema.index({ isActive: 1, createdAt: -1 });
 
 export const RequirementTemplate = mongoose.model(
   "RequirementTemplate",

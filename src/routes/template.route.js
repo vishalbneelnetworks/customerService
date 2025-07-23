@@ -3,29 +3,29 @@ import {
   createTemplateController,
   getTemplatesController,
   getTemplateByIdController,
-  getTemplateByProjectTypeController,
-  getAvailableProjectTypesController,
   updateTemplateController,
   deleteTemplateController,
   toggleTemplateStatusController,
+  getProjectTypesWithSubTypesController,
+  getTemplateByProjectSubTypeController,
 } from "../controllers/template.controller.js";
 
 const router = Router();
 
-// Public routes
-router.get("/", getTemplatesController);
-router.get("/project-types", getAvailableProjectTypesController);
-router.get("/:templateId", getTemplateByIdController);
-
-// Split the route into two separate routes instead of using optional parameter
-router.get("/project-type/:projectType", getTemplateByProjectTypeController);
+// New optimized routes
 router.get(
-  "/project-type/:projectType/:version",
-  getTemplateByProjectTypeController
+  "/project-types-with-subtypes",
+  getProjectTypesWithSubTypesController
+);
+router.get(
+  "/project-types/:projectType/:subProjectType",
+  getTemplateByProjectSubTypeController
 );
 
-// Super Admin routes
+// Existing routes
+router.get("/", getTemplatesController);
 router.post("/", createTemplateController);
+router.get("/:templateId", getTemplateByIdController);
 router.patch("/:templateId", updateTemplateController);
 router.delete("/:templateId", deleteTemplateController);
 router.patch("/:templateId/toggle-status", toggleTemplateStatusController);

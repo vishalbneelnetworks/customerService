@@ -50,6 +50,10 @@ export const createFormSchema = Joi.object({
         "Project type can only contain lowercase letters and underscores",
     }),
 
+  subProjectType: Joi.string().trim().lowercase().default("default").messages({
+    "string.base": "Sub-project type must be a string",
+  }),
+
   description: Joi.string().required().min(10).max(1000).messages({
     "any.required": "Description is required",
     "string.min": "Description must be at least 10 characters long",
@@ -121,6 +125,9 @@ export const formQuerySchema = Joi.object({
       "string.pattern.base":
         "Project type can only contain lowercase letters and underscores",
     }),
+  subProjectType: Joi.string().trim().lowercase().default("default").messages({
+    "string.base": "Sub-project type must be a string",
+  }),
   status: Joi.string().valid(...FORM_STATUSES),
   sortBy: Joi.string()
     .valid("createdAt", "updatedAt", "status")

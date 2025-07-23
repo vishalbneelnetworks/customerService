@@ -4,11 +4,11 @@ import {
   createTemplate,
   getTemplates,
   getTemplateById,
-  getTemplateByProjectType,
   updateTemplate,
   deleteTemplate,
   toggleTemplateStatus,
-  getAvailableProjectTypes,
+  getProjectTypesWithSubTypes,
+  getTemplateByProjectAndSubType,
 } from "../services/template.service.js";
 
 // Create a new template
@@ -77,30 +77,39 @@ export const toggleTemplateStatusController = asyncHandler(async (req, res) => {
     );
 });
 
-export const getAvailableProjectTypesController = asyncHandler(
+// Get all project types with their sub-types
+export const getProjectTypesWithSubTypesController = asyncHandler(
   async (req, res) => {
-    const projectTypes = await getAvailableProjectTypes();
+    const projectTypesWithSubTypes = await getProjectTypesWithSubTypes();
 
     res
       .status(200)
       .json(
         new ApiResponse(
           200,
-          projectTypes,
-          "Available project types retrieved successfully"
+          { ...projectTypesWithSubTypes },
+          "Project types with sub-types retrieved successfully"
         )
       );
   }
 );
 
-export const getTemplateByProjectTypeController = asyncHandler(
+// Get template by project type and sub-project type
+export const getTemplateByProjectSubTypeController = asyncHandler(
   async (req, res) => {
-    const { projectType, version } = req.params;
+    const { projectType, subProjectType } = req.params;
+    const { version } = req.query;
 
-    const template = await getTemplateByProjectType(projectType, version);
+    const template = await getTemplateByProjectAndSubType(
+      projectType,
+      subProjectType,
+      version
+    );
 
     res
       .status(200)
-      .json(new ApiResponse(200, template, "Template retrieved successfully"));
+      .json(
+        new ApiResponse(200, { template }, "Template retrieved successfully")
+      );
   }
 );

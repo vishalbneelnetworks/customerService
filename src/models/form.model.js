@@ -1,10 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import {
-  PROJECT_TYPES,
-  FORM_STATUSES,
-  FORM_TYPES,
-  INQUIRY_TYPES,
-} from "../constant.js";
+import { FORM_STATUSES, FORM_TYPES, INQUIRY_TYPES } from "../constant.js";
 
 const formSchema = new Schema(
   {
@@ -18,9 +13,14 @@ const formSchema = new Schema(
       lowercase: true,
       required: true,
     },
+    subProjectType: {
+      type: String,
+      lowercase: true,
+      required: true,
+      default: "default",
+    },
     description: { type: String, required: true },
 
-    // Simple budget and timeline fields
     budgetRange: {
       type: String,
       required: true,
@@ -64,8 +64,11 @@ const formSchema = new Schema(
   { timestamps: true }
 );
 
+formSchema.index({ projectType: 1, subProjectType: 1 });
 formSchema.index({ projectType: 1 });
 formSchema.index({ formType: 1 });
 formSchema.index({ status: 1 });
+formSchema.index({ status: 1, createdAt: -1 });
+formSchema.index({ templateId: 1, status: 1 });
 
 export const RequirementForm = mongoose.model("RequirementForm", formSchema);

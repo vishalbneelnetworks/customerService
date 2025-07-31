@@ -3,10 +3,12 @@ import { ApiError } from "../utils/ApiError.js";
 import { validateAdvancedInfo } from "../utils/buildZodSchemaFromTemplate.js";
 import mongoose from "mongoose";
 import {
-  PROJECT_TYPES,
   FORM_STATUSES,
   FORM_TYPES,
   INQUIRY_TYPES,
+  INDUSTRY_TYPES,
+  VENDOR_TIERS,
+  TIMELINE_TYPES,
 } from "../constant.js";
 
 const objectIdValidation = (value, helpers) => {
@@ -16,16 +18,26 @@ const objectIdValidation = (value, helpers) => {
   return value;
 };
 
-// Basic form validation schemas
 const basicInfoSchema = Joi.object({
   inquiryType: Joi.string()
     .valid(...INQUIRY_TYPES)
     .messages({
       "any.only": `Inquiry type must be one of: ${INQUIRY_TYPES.join(", ")}`,
     }),
-  preferredTime: Joi.string().allow("").messages({
-    "string.base": "Preferred time must be a string",
+});
+
+const advancedInfoSchema = Joi.object({
+  businessTemplateId: Joi.string()
+    .required()
+    .custom(objectIdValidation)
+    .messages({
+      "any.required": "Business template ID is required",
+      "any.invalid": "Invalid business template ID format",
+    }),
+  technicalTemplateId: Joi.string().custom(objectIdValidation).messages({
+    "any.invalid": "Invalid technical template ID format",
   }),
+  responses: Joi.object().required(),
 });
 
 export const createFormSchema = Joi.object({
@@ -54,19 +66,37 @@ export const createFormSchema = Joi.object({
     "string.base": "Sub-project type must be a string",
   }),
 
+  industryType: Joi.string()
+    .valid(...INDUSTRY_TYPES)
+    .required()
+    .messages({
+      "any.required": "Industry type is required",
+      "any.only": `Industry type must be one of: ${INDUSTRY_TYPES.join(", ")}`,
+    }),
+
   description: Joi.string().required().min(10).max(1000).messages({
     "any.required": "Description is required",
     "string.min": "Description must be at least 10 characters long",
     "string.max": "Description must be at most 1000 characters long",
   }),
 
-  budgetRange: Joi.string().required().messages({
-    "any.required": "Budget range is required",
-  }),
+  vendorTier: Joi.string()
+    .valid(...VENDOR_TIERS)
+    .required()
+    .messages({
+      "any.required": "Vendor tier is required",
+      "any.only": `Vendor tier must be one of: ${VENDOR_TIERS.join(", ")}`,
+    }),
 
-  timeline: Joi.string().required().messages({
-    "any.required": "Timeline is required",
-  }),
+  preferredTimeline: Joi.string()
+    .valid(...TIMELINE_TYPES)
+    .required()
+    .messages({
+      "any.required": "Preferred timeline is required",
+      "any.only": `Preferred timeline must be one of: ${TIMELINE_TYPES.join(
+        ", "
+      )}`,
+    }),
 
   status: Joi.string()
     .valid(...FORM_STATUSES)
@@ -75,18 +105,13 @@ export const createFormSchema = Joi.object({
       "any.only": `Status must be one of: ${FORM_STATUSES.join(", ")}`,
     }),
 
-  templateId: Joi.string().required().custom(objectIdValidation).messages({
-    "any.required": "Template ID is required",
-    "any.invalid": "Invalid template ID format",
-  }),
-
   basicInfo: basicInfoSchema.when("formType", {
     is: "basic",
     then: Joi.required(),
     otherwise: Joi.forbidden(),
   }),
 
-  advancedInfo: Joi.object().when("formType", {
+  advancedInfo: advancedInfoSchema.when("formType", {
     is: "advanced",
     then: Joi.required(),
     otherwise: Joi.forbidden(),
@@ -99,16 +124,22 @@ export const updateFormSchema = Joi.object({
     "string.max": "Description must be at most 1000 characters long",
   }),
 
-  budgetRange: Joi.string().messages({
-    "any.required": "Budget range is required",
-  }),
+  vendorTier: Joi.string()
+    .valid(...VENDOR_TIERS)
+    .messages({
+      "any.only": `Vendor tier must be one of: ${VENDOR_TIERS.join(", ")}`,
+    }),
 
-  timeline: Joi.string().messages({
-    "any.required": "Timeline is required",
-  }),
+  preferredTimeline: Joi.string()
+    .valid(...TIMELINE_TYPES)
+    .messages({
+      "any.only": `Preferred timeline must be one of: ${TIMELINE_TYPES.join(
+        ", "
+      )}`,
+    }),
 
   basicInfo: basicInfoSchema,
-  advancedInfo: Joi.object(),
+  advancedInfo: advancedInfoSchema,
 });
 
 export const formQuerySchema = Joi.object({
@@ -128,6 +159,7 @@ export const formQuerySchema = Joi.object({
   subProjectType: Joi.string().trim().lowercase().default("default").messages({
     "string.base": "Sub-project type must be a string",
   }),
+  industryType: Joi.string().valid(...INDUSTRY_TYPES),
   status: Joi.string().valid(...FORM_STATUSES),
   sortBy: Joi.string()
     .valid("createdAt", "updatedAt", "status")
@@ -135,30 +167,6 @@ export const formQuerySchema = Joi.object({
   sortOrder: Joi.string().valid("asc", "desc").default("desc"),
 });
 
-// Simple template validation
-export const validateAgainstTemplate = (formData, template) => {
-  const { budgetRange, timeline } = formData;
-
-  // Validate budget range
-  if (budgetRange && !template.budgetRanges.includes(budgetRange)) {
-    throw new ApiError(
-      400,
-      `Budget range must be one of: ${template.budgetRanges.join(", ")}`
-    );
-  }
-
-  // Validate timeline
-  if (timeline && !template.timelineOptions.includes(timeline)) {
-    throw new ApiError(
-      400,
-      `Timeline must be one of: ${template.timelineOptions.join(", ")}`
-    );
-  }
-
-  return true;
-};
-
-// Status transition validation
 export const validateStatusTransition = (currentStatus, newStatus) => {
   const validTransitions = {
     draft: ["submitted"],
@@ -179,7 +187,6 @@ export const validateStatusTransition = (currentStatus, newStatus) => {
   }
 };
 
-// Check if form can be modified
 export const checkFormModifiable = (form) => {
   if (form.status !== "draft") {
     throw new ApiError(
@@ -189,7 +196,6 @@ export const checkFormModifiable = (form) => {
   }
 };
 
-// Validation Functions
 export const validateCreateForm = (data) => {
   const { error, value } = createFormSchema.validate(data, {
     abortEarly: false,
@@ -229,11 +235,18 @@ export const validateFormQuery = (query) => {
   return value;
 };
 
-// Advanced validation for template-based forms
-export const validateAdvancedForm = (advancedInfo, template) => {
+export const validateAdvancedForm = (
+  responses,
+  businessTemplate,
+  technicalTemplate
+) => {
   try {
-    const validatedAdvancedInfo = validateAdvancedInfo(advancedInfo, template);
-    return validatedAdvancedInfo;
+    const validatedResponses = validateAdvancedInfo(
+      responses,
+      businessTemplate,
+      technicalTemplate
+    );
+    return validatedResponses;
   } catch (error) {
     throw new ApiError(
       400,

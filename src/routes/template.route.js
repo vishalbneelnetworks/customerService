@@ -1,32 +1,36 @@
-import { Router } from "express";
+import express from "express";
 import {
   createTemplateController,
   getTemplatesController,
+  getTemplatesByTypeController,
   getTemplateByIdController,
+  getBusinessTemplateController,
+  getTechnicalTemplateController,
+  getAdvancedFormTemplatesController,
   updateTemplateController,
   deleteTemplateController,
   toggleTemplateStatusController,
-  getProjectTypesWithSubTypesController,
-  getTemplateByProjectSubTypeController,
 } from "../controllers/template.controller.js";
 
-const router = Router();
+const router = express.Router();
 
-// New optimized routes
-router.get(
-  "/project-types-with-subtypes",
-  getProjectTypesWithSubTypesController
-);
-router.get(
-  "/project-types/:projectType/:subProjectType",
-  getTemplateByProjectSubTypeController
-);
-
-// Existing routes
-router.get("/", getTemplatesController);
 router.post("/", createTemplateController);
+router.get("/", getTemplatesController);
+
+router.get(
+  "/advanced/:projectType/:subProjectType",
+  getAdvancedFormTemplatesController
+);
+router.get(
+  "/business/:projectType/:subProjectType",
+  getBusinessTemplateController
+);
+router.get("/technical/:projectType", getTechnicalTemplateController);
+
+router.get("/:templateType", getTemplatesByTypeController);
 router.get("/:templateId", getTemplateByIdController);
-router.patch("/:templateId", updateTemplateController);
+
+router.put("/:templateId", updateTemplateController);
 router.delete("/:templateId", deleteTemplateController);
 router.patch("/:templateId/toggle-status", toggleTemplateStatusController);
 

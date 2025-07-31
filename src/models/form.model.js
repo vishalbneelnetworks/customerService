@@ -1,11 +1,23 @@
 import mongoose, { Schema } from "mongoose";
-import { FORM_STATUSES, FORM_TYPES, INQUIRY_TYPES } from "../constant.js";
+import {
+  FORM_STATUSES,
+  FORM_TYPES,
+  INQUIRY_TYPES,
+  TIMELINE_TYPES,
+  VENDOR_TIERS,
+  INDUSTRY_TYPES,
+} from "../constant.js";
 
 const formSchema = new Schema(
   {
     formType: {
       type: String,
       enum: FORM_TYPES,
+      required: true,
+    },
+    industryType: {
+      type: String,
+      enum: INDUSTRY_TYPES,
       required: true,
     },
     projectType: {
@@ -19,14 +31,18 @@ const formSchema = new Schema(
       required: true,
       default: "default",
     },
-    description: { type: String, required: true },
 
-    budgetRange: {
+    description: { type: String, required: false },
+
+    vendorTier: {
       type: String,
+      enum: VENDOR_TIERS,
       required: true,
     },
-    timeline: {
+
+    preferredTimeline: {
       type: String,
+      enum: TIMELINE_TYPES,
       required: true,
     },
 
@@ -43,19 +59,32 @@ const formSchema = new Schema(
             type: String,
             enum: INQUIRY_TYPES,
           },
-          preferredTime: { type: String },
         },
         { _id: false }
       ),
     },
     advancedInfo: {
-      type: Schema.Types.Mixed,
+      type: new Schema(
+        {
+          businessTemplateId: {
+            type: Schema.Types.ObjectId,
+            ref: "Template",
+            required: true,
+          },
+          technicalTemplateId: {
+            type: Schema.Types.ObjectId,
+            ref: "Template",
+            required: false,
+          },
+
+          responses: {
+            type: Schema.Types.Mixed,
+            required: false,
+          },
+        },
+        { _id: false }
+      ),
       required: false,
-    },
-    templateId: {
-      type: Schema.Types.ObjectId,
-      ref: "RequirementTemplate",
-      required: true,
     },
     submittedAt: { type: Date },
     reviewedAt: { type: Date },

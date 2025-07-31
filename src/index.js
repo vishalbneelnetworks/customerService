@@ -11,7 +11,7 @@ async function startServer() {
     await connectDb();
     safeLogger.info("✔️ Database connected");
 
-    await initializeGrpcServices();
+    // await initializeGrpcServices();
 
     // await initRedis();
     // safeLogger.info("✔️ Redis connection successful");
@@ -26,7 +26,7 @@ async function startServer() {
     const gracefulShutdown = async () => {
       safeLogger.info("🔻 Graceful shutdown initiated");
       await connectDb.close();
-      stopMonitoring();
+      // stopMonitoring();
       server.close(() => {
         safeLogger.info("🧹 Express server closed");
         process.exit(0);

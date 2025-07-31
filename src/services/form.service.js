@@ -7,35 +7,47 @@ import {
   validateAdvancedForm,
   validateStatusTransition,
   checkFormModifiable,
-  validateAgainstTemplate,
+  // validateAgainstTemplate,
 } from "../validation/form.validation.js";
 import mongoose from "mongoose";
-import { RequirementTemplate } from "../models/template.model.js";
+import { Template } from "../models/template.model.js";
 
 export const createForm = async (formData) => {
   const validatedData = validateCreateForm(formData);
-  const { projectType, subProjectType = "default", templateId } = validatedData;
-
-  const template = await RequirementTemplate.findById(templateId);
-  if (!template) {
-    throw new ApiError(404, "Template not found");
-  }
-
-  if (template.projectType !== projectType.toLowerCase()) {
-    throw new ApiError(400, "Project type doesn't match template");
-  }
-
-  if (template.subProjectType !== subProjectType.toLowerCase()) {
-    throw new ApiError(400, "Sub-project type doesn't match template");
-  }
-
-  validateAgainstTemplate(validatedData, template);
 
   if (validatedData.formType === "advanced" && validatedData.advancedInfo) {
-    await validateAdvancedForm({
-      ...validatedData,
-      templateId: template._id,
-    });
+    const { businessTemplateId, technicalTemplateId, responses } =
+      validatedData.advancedInfo;
+
+    const businessTemplate = await Template.findById(businessTemplateId);
+
+    if (!businessTemplate) {
+      throw new ApiError(404, "Business template not found");
+    }
+
+    if (businessTemplate.templateType !== "business") {
+      throw new ApiError(400, "Invalid business template type");
+    }
+
+    let technicalTemplate = null;
+    if (technicalTemplateId) {
+      technicalTemplate = await Template.findById(technicalTemplateId);
+      if (!technicalTemplate) {
+        throw new ApiError(404, "Technical template not found");
+      }
+
+      if (technicalTemplate.templateType !== "technical") {
+        throw new ApiError(400, "Invalid technical template type");
+      }
+    }
+
+    const validatedResponses = validateAdvancedForm(
+      responses,
+      businessTemplate,
+      technicalTemplate
+    );
+
+    validatedData.advancedInfo.responses = validatedResponses;
   }
 
   const form = await RequirementForm.create(validatedData);
@@ -56,36 +68,30 @@ export const getFormWithTemplate = async (formId) => {
     { $match: { _id: new mongoose.Types.ObjectId(formId) } },
     {
       $lookup: {
-        from: "requirementtemplates",
-        localField: "templateId",
+        from: "templates",
+        localField: "advancedInfo.businessTemplateId",
         foreignField: "_id",
-        as: "template",
-        pipeline: [
-          {
-            $project: {
-              projectType: 1,
-              version: 1,
-              fields: 1,
-              isActive: 1,
-              createdAt: 1,
-              updatedAt: 1,
-            },
-          },
-        ],
+        as: "businessTemplate",
       },
     },
     {
-      $addFields: {
-        template: { $arrayElemAt: ["$template", 0] },
+      $lookup: {
+        from: "templates",
+        localField: "advancedInfo.technicalTemplateId",
+        foreignField: "_id",
+        as: "technicalTemplate",
       },
+    },
+    {
+      $unwind: { path: "$businessTemplate", preserveNullAndEmptyArrays: true },
+    },
+    {
+      $unwind: { path: "$technicalTemplate", preserveNullAndEmptyArrays: true },
     },
   ];
 
-  const [form] = await RequirementForm.aggregate(pipeline);
-
-  if (!form) {
-    throw new ApiError(404, "Form not found");
-  }
+  const [result] = await RequirementForm.aggregate(pipeline);
+  const form = result;
 
   return form;
 };
@@ -205,11 +211,6 @@ export const updateForm = async (formId, updateData) => {
   // Validate update data
   const validatedData = validateUpdateForm(updateData);
 
-  const template = await RequirementTemplate.findById(form.templateId);
-
-  // Validate budget/timeline against template
-  validateAgainstTemplate(validatedData, template);
-
   if (form.formType === "basic" && validatedData.advancedInfo) {
     throw new ApiError(400, "Cannot update advancedInfo for basic forms");
   }
@@ -219,11 +220,39 @@ export const updateForm = async (formId, updateData) => {
   }
 
   if (validatedData.advancedInfo) {
-    const validatedAdvancedInfo = validateAdvancedForm(
-      validatedData.advancedInfo,
-      template
+    const businessTemplate = await Template.findById(
+      form.advancedInfo.businessTemplateId
     );
-    validatedData.advancedInfo = validatedAdvancedInfo;
+
+    if (!businessTemplate) {
+      throw new ApiError(404, "Business template not found");
+    }
+
+    if (businessTemplate.templateType !== "business") {
+      throw new ApiError(400, "Invalid business template type");
+    }
+
+    let technicalTemplate = null;
+
+    if (form.advancedInfo.technicalTemplateId) {
+      technicalTemplate = await Template.findById(
+        form.advancedInfo.technicalTemplateId
+      );
+      if (!technicalTemplate) {
+        throw new ApiError(404, "Technical template not found");
+      }
+
+      if (technicalTemplate.templateType !== "technical") {
+        throw new ApiError(400, "Invalid technical template type");
+      }
+    }
+
+    const validatedResponses = validateAdvancedForm(
+      validatedData.advancedInfo.responses,
+      businessTemplate,
+      technicalTemplate
+    );
+    validatedData.advancedInfo.responses = validatedResponses;
   }
 
   // Update the form

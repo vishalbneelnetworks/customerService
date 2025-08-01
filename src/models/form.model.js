@@ -8,8 +8,43 @@ import {
   INDUSTRY_TYPES,
 } from "../constant.js";
 
+const basicInfoSchema = new Schema(
+  {
+    inquiryType: {
+      type: String,
+      enum: INQUIRY_TYPES,
+    },
+  },
+  { _id: false, required: false }
+);
+
+const advancedInfoSchema = new Schema(
+  {
+    projectGoal: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    designInspiration: {
+      type: String,
+      required: false,
+      default: "",
+    },
+    projectConstraints: {
+      type: String,
+      required: false,
+      default: "",
+    },
+  },
+  { _id: false, required: false }
+);
+
 const formSchema = new Schema(
   {
+    customerId: {
+      type: String,
+      required: true,
+    },
     formType: {
       type: String,
       enum: FORM_TYPES,
@@ -46,46 +81,19 @@ const formSchema = new Schema(
       required: true,
     },
 
+    uploadedFiles: {
+      type: Schema.Types.Mixed,
+      required: false,
+    },
+
     status: {
       type: String,
       enum: FORM_STATUSES,
       default: "draft",
       required: true,
     },
-    basicInfo: {
-      type: new Schema(
-        {
-          inquiryType: {
-            type: String,
-            enum: INQUIRY_TYPES,
-          },
-        },
-        { _id: false }
-      ),
-    },
-    advancedInfo: {
-      type: new Schema(
-        {
-          businessTemplateId: {
-            type: Schema.Types.ObjectId,
-            ref: "Template",
-            required: true,
-          },
-          technicalTemplateId: {
-            type: Schema.Types.ObjectId,
-            ref: "Template",
-            required: false,
-          },
-
-          responses: {
-            type: Schema.Types.Mixed,
-            required: false,
-          },
-        },
-        { _id: false }
-      ),
-      required: false,
-    },
+    basicInfo: basicInfoSchema,
+    advancedInfo: advancedInfoSchema,
     submittedAt: { type: Date },
     reviewedAt: { type: Date },
     publishedAt: { type: Date },
@@ -99,5 +107,12 @@ formSchema.index({ formType: 1 });
 formSchema.index({ status: 1 });
 formSchema.index({ status: 1, createdAt: -1 });
 formSchema.index({ templateId: 1, status: 1 });
+
+formSchema.options.toJSON = {
+  transform: function (doc, ret) {
+    delete ret.__v;
+    return ret;
+  },
+};
 
 export const RequirementForm = mongoose.model("RequirementForm", formSchema);

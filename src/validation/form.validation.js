@@ -1,7 +1,5 @@
 import Joi from "joi";
 import { ApiError } from "../utils/ApiError.js";
-import { validateAdvancedInfo } from "../utils/buildZodSchemaFromTemplate.js";
-import mongoose from "mongoose";
 import {
   FORM_STATUSES,
   FORM_TYPES,
@@ -10,13 +8,8 @@ import {
   VENDOR_TIERS,
   TIMELINE_TYPES,
 } from "../constant.js";
-
-const objectIdValidation = (value, helpers) => {
-  if (!mongoose.Types.ObjectId.isValid(value)) {
-    return helpers.error("any.invalid");
-  }
-  return value;
-};
+import mongoose from "mongoose";
+import { createStructuredValidationError } from "../utils/errorHandler.js";
 
 const basicInfoSchema = Joi.object({
   inquiryType: Joi.string()
@@ -27,20 +20,13 @@ const basicInfoSchema = Joi.object({
 });
 
 const advancedInfoSchema = Joi.object({
-  businessTemplateId: Joi.string()
-    .required()
-    .custom(objectIdValidation)
-    .messages({
-      "any.required": "Business template ID is required",
-      "any.invalid": "Invalid business template ID format",
-    }),
-  technicalTemplateId: Joi.string().custom(objectIdValidation).messages({
-    "any.invalid": "Invalid technical template ID format",
-  }),
-  responses: Joi.object().required(),
+  projectGoal: Joi.string().default(""),
+  designInspiration: Joi.string().default(""),
+  projectConstraints: Joi.string().default("nothing to provide"),
 });
 
 export const createFormSchema = Joi.object({
+  customerId: Joi.string().required(),
   formType: Joi.string()
     .valid(...FORM_TYPES)
     .required()
@@ -156,7 +142,7 @@ export const formQuerySchema = Joi.object({
       "string.pattern.base":
         "Project type can only contain lowercase letters and underscores",
     }),
-  subProjectType: Joi.string().trim().lowercase().default("default").messages({
+  subProjectType: Joi.string().trim().lowercase().messages({
     "string.base": "Sub-project type must be a string",
   }),
   industryType: Joi.string().valid(...INDUSTRY_TYPES),
@@ -187,11 +173,11 @@ export const validateStatusTransition = (currentStatus, newStatus) => {
   }
 };
 
-export const checkFormModifiable = (form) => {
+export const checkFormModifiable = (form, action) => {
   if (form.status !== "draft") {
     throw new ApiError(
       400,
-      `Form cannot be modified. Current status: ${form.status}. Only draft forms can be modified.`
+      `Form cannot be ${action}. Current status: ${form.status}. Only draft forms can be ${action}.`
     );
   }
 };
@@ -202,8 +188,11 @@ export const validateCreateForm = (data) => {
   });
 
   if (error) {
-    const errorMessages = error.details.map((detail) => detail.message);
-    throw new ApiError(400, `Validation failed: ${errorMessages.join(", ")}`);
+    throw new ApiError(
+      400,
+      "Validation failed",
+      createStructuredValidationError(error)
+    );
   }
 
   return value;
@@ -215,8 +204,11 @@ export const validateUpdateForm = (data) => {
   });
 
   if (error) {
-    const errorMessages = error.details.map((detail) => detail.message);
-    throw new ApiError(400, `Validation failed: ${errorMessages.join(", ")}`);
+    throw new ApiError(
+      400,
+      "Validation failed",
+      createStructuredValidationError(error)
+    );
   }
 
   return value;
@@ -235,22 +227,12 @@ export const validateFormQuery = (query) => {
   return value;
 };
 
-export const validateAdvancedForm = (
-  responses,
-  businessTemplate,
-  technicalTemplate
-) => {
-  try {
-    const validatedResponses = validateAdvancedInfo(
-      responses,
-      businessTemplate,
-      technicalTemplate
-    );
-    return validatedResponses;
-  } catch (error) {
-    throw new ApiError(
-      400,
-      `Advanced info validation failed: ${error.message}`
-    );
+export const validateMongoId = (id) => {
+  if (!id) {
+    throw new ApiError(400, "ID is required");
   }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    throw new ApiError(400, "Invalid ID format");
+  }
+  return id;
 };

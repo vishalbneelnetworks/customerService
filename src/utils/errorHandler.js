@@ -45,4 +45,25 @@ function errorHandler(err, req, res, next) {
   });
 }
 
-export { errorHandler };
+const createStructuredValidationError = (joiError) => {
+  const errors = {};
+
+  joiError.details.forEach((detail) => {
+    const path = detail.path.join(".");
+    const message = detail.message;
+
+    if (!errors[path]) {
+      errors[path] = [];
+    }
+    errors[path].push(message);
+  });
+
+  return {
+    success: false,
+    message: "Validation failed",
+    errors: errors,
+    errorType: "VALIDATION_ERROR",
+  };
+};
+
+export { errorHandler, createStructuredValidationError };

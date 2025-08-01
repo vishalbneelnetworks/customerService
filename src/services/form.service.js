@@ -4,100 +4,36 @@ import {
   validateCreateForm,
   validateUpdateForm,
   validateFormQuery,
-  validateAdvancedForm,
   validateStatusTransition,
   checkFormModifiable,
-  // validateAgainstTemplate,
+  validateMongoId,
 } from "../validation/form.validation.js";
-import mongoose from "mongoose";
-import { Template } from "../models/template.model.js";
 
 export const createForm = async (formData) => {
   const validatedData = validateCreateForm(formData);
 
-  if (validatedData.formType === "advanced" && validatedData.advancedInfo) {
-    const { businessTemplateId, technicalTemplateId, responses } =
-      validatedData.advancedInfo;
+  const existingForm = await RequirementForm.findOne({
+    customerId: validatedData.customerId,
+    formType: validatedData.formType,
+    projectType: validatedData.projectType,
+    subProjectType: validatedData.subProjectType,
+  });
 
-    const businessTemplate = await Template.findById(businessTemplateId);
-
-    if (!businessTemplate) {
-      throw new ApiError(404, "Business template not found");
-    }
-
-    if (businessTemplate.templateType !== "business") {
-      throw new ApiError(400, "Invalid business template type");
-    }
-
-    let technicalTemplate = null;
-    if (technicalTemplateId) {
-      technicalTemplate = await Template.findById(technicalTemplateId);
-      if (!technicalTemplate) {
-        throw new ApiError(404, "Technical template not found");
-      }
-
-      if (technicalTemplate.templateType !== "technical") {
-        throw new ApiError(400, "Invalid technical template type");
-      }
-    }
-
-    const validatedResponses = validateAdvancedForm(
-      responses,
-      businessTemplate,
-      technicalTemplate
+  if (existingForm) {
+    throw new ApiError(
+      400,
+      `Form already exists for customer ${validatedData.customerId} with form type ${validatedData.formType} and project type ${validatedData.projectType} and subProjectType ${validatedData.subProjectType}`
     );
-
-    validatedData.advancedInfo.responses = validatedResponses;
   }
 
-  const form = await RequirementForm.create(validatedData);
+  const newForm = await RequirementForm.create(validatedData);
 
-  return form;
-};
-
-export const getFormWithTemplate = async (formId) => {
-  if (!formId) {
-    throw new ApiError(400, "Form ID is required");
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(formId)) {
-    throw new ApiError(400, "Invalid form ID format");
-  }
-
-  const pipeline = [
-    { $match: { _id: new mongoose.Types.ObjectId(formId) } },
-    {
-      $lookup: {
-        from: "templates",
-        localField: "advancedInfo.businessTemplateId",
-        foreignField: "_id",
-        as: "businessTemplate",
-      },
-    },
-    {
-      $lookup: {
-        from: "templates",
-        localField: "advancedInfo.technicalTemplateId",
-        foreignField: "_id",
-        as: "technicalTemplate",
-      },
-    },
-    {
-      $unwind: { path: "$businessTemplate", preserveNullAndEmptyArrays: true },
-    },
-    {
-      $unwind: { path: "$technicalTemplate", preserveNullAndEmptyArrays: true },
-    },
-  ];
-
-  const [result] = await RequirementForm.aggregate(pipeline);
-  const form = result;
-
-  return form;
+  return newForm;
 };
 
 export const getFormById = async (formId) => {
-  const form = await RequirementForm.findById(formId);
+  const validatedId = validateMongoId(formId);
+  const form = await RequirementForm.findById(validatedId);
   if (!form) {
     throw new ApiError(404, "Form not found");
   }
@@ -105,24 +41,30 @@ export const getFormById = async (formId) => {
 };
 
 export const getForms = async (queryParams = {}) => {
-  // Validate query parameters
   const validatedQuery = validateFormQuery(queryParams);
-  const { page, limit, formType, projectType, status, sortBy, sortOrder } =
-    validatedQuery;
+  const {
+    page,
+    limit,
+    formType,
+    projectType,
+    status,
+    sortBy,
+    sortOrder,
+    industryType,
+    subProjectType,
+  } = validatedQuery;
 
-  // Build match stage
   const matchStage = {};
   if (formType) matchStage.formType = formType;
   if (projectType) matchStage.projectType = projectType;
   if (status) matchStage.status = status;
-
-  // Build sort stage
+  if (industryType) matchStage.industryType = industryType;
+  if (subProjectType) matchStage.subProjectType = subProjectType;
   const sortStage = {};
   sortStage[sortBy] = sortOrder === "desc" ? -1 : 1;
 
   const skip = (page - 1) * limit;
 
-  // Aggregation pipeline
   const pipeline = [
     { $match: matchStage },
     { $sort: sortStage },
@@ -150,15 +92,16 @@ export const getForms = async (queryParams = {}) => {
   };
 };
 
-export const getFormsByProjectType = async (projectType, queryParams = {}) => {
-  if (!projectType) {
-    throw new ApiError(400, "Project type is required");
-  }
-
+export const getFormsByProjectTypeOrSubProjectType = async (
+  projectType,
+  subProjectType = null,
+  queryParams = {}
+) => {
   const validatedQuery = validateFormQuery(queryParams);
   const { page = 1, limit = 10, status } = validatedQuery;
 
   const matchStage = { projectType };
+  if (subProjectType) matchStage.subProjectType = subProjectType;
   if (status) matchStage.status = status;
 
   const skip = (page - 1) * limit;
@@ -173,6 +116,8 @@ export const getFormsByProjectType = async (projectType, queryParams = {}) => {
       },
     },
   ];
+
+  console.log(matchStage);
 
   const [result] = await RequirementForm.aggregate(pipeline);
   const forms = result.forms;
@@ -191,24 +136,15 @@ export const getFormsByProjectType = async (projectType, queryParams = {}) => {
 };
 
 export const updateForm = async (formId, updateData) => {
-  if (!formId) {
-    throw new ApiError(400, "Form ID is required");
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(formId)) {
-    throw new ApiError(400, "Invalid form ID format");
-  }
-
-  const form = await RequirementForm.findById(formId);
+  const validatedId = validateMongoId(formId);
+  const form = await RequirementForm.findById(validatedId);
 
   if (!form) {
     throw new ApiError(404, "Form not found");
   }
 
-  // Check if form can be modified (only draft forms)
-  checkFormModifiable(form);
+  checkFormModifiable(form, "update");
 
-  // Validate update data
   const validatedData = validateUpdateForm(updateData);
 
   if (form.formType === "basic" && validatedData.advancedInfo) {
@@ -219,45 +155,8 @@ export const updateForm = async (formId, updateData) => {
     throw new ApiError(400, "Cannot update basicInfo for advanced forms");
   }
 
-  if (validatedData.advancedInfo) {
-    const businessTemplate = await Template.findById(
-      form.advancedInfo.businessTemplateId
-    );
-
-    if (!businessTemplate) {
-      throw new ApiError(404, "Business template not found");
-    }
-
-    if (businessTemplate.templateType !== "business") {
-      throw new ApiError(400, "Invalid business template type");
-    }
-
-    let technicalTemplate = null;
-
-    if (form.advancedInfo.technicalTemplateId) {
-      technicalTemplate = await Template.findById(
-        form.advancedInfo.technicalTemplateId
-      );
-      if (!technicalTemplate) {
-        throw new ApiError(404, "Technical template not found");
-      }
-
-      if (technicalTemplate.templateType !== "technical") {
-        throw new ApiError(400, "Invalid technical template type");
-      }
-    }
-
-    const validatedResponses = validateAdvancedForm(
-      validatedData.advancedInfo.responses,
-      businessTemplate,
-      technicalTemplate
-    );
-    validatedData.advancedInfo.responses = validatedResponses;
-  }
-
-  // Update the form
   const updatedForm = await RequirementForm.findByIdAndUpdate(
-    formId,
+    validatedId,
     validatedData,
     { new: true, runValidators: true }
   );
@@ -266,41 +165,22 @@ export const updateForm = async (formId, updateData) => {
 };
 
 export const deleteForm = async (formId) => {
-  if (!formId) {
-    throw new ApiError(400, "Form ID is required");
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(formId)) {
-    throw new ApiError(400, "Invalid form ID format");
-  }
-
-  const form = await RequirementForm.findById(formId);
+  const validatedId = validateMongoId(formId);
+  const form = await RequirementForm.findById(validatedId);
 
   if (!form) {
     throw new ApiError(404, "Form not found");
   }
 
-  // Check if form can be deleted (only draft forms)
-  checkFormModifiable(form);
+  checkFormModifiable(form, "delete");
 
-  await RequirementForm.findByIdAndDelete(formId);
+  await RequirementForm.findByIdAndDelete(validatedId);
   return form;
 };
 
 export const changeFormStatus = async (formId, newStatus) => {
-  if (!formId) {
-    throw new ApiError(400, "Form ID is required");
-  }
-
-  if (!newStatus) {
-    throw new ApiError(400, "Status is required");
-  }
-
-  if (!mongoose.Types.ObjectId.isValid(formId)) {
-    throw new ApiError(400, "Invalid form ID format");
-  }
-
-  const form = await RequirementForm.findById(formId);
+  const validatedId = validateMongoId(formId);
+  const form = await RequirementForm.findById(validatedId);
 
   if (!form) {
     throw new ApiError(404, "Form not found");
@@ -310,10 +190,8 @@ export const changeFormStatus = async (formId, newStatus) => {
     throw new ApiError(400, "Form is already in this status");
   }
 
-  // Validate status transition
   validateStatusTransition(form.status, newStatus);
 
-  // Update timestamps based on status
   const updateData = { status: newStatus };
 
   if (newStatus === "submitted") {
@@ -325,24 +203,10 @@ export const changeFormStatus = async (formId, newStatus) => {
   }
 
   const updatedForm = await RequirementForm.findByIdAndUpdate(
-    formId,
+    validatedId,
     updateData,
     { new: true, runValidators: true }
   );
 
   return updatedForm;
 };
-
-// Default export for convenience
-const formService = {
-  createForm,
-  getFormWithTemplate,
-  getForms,
-  getFormById,
-  getFormsByProjectType,
-  updateForm,
-  deleteForm,
-  changeFormStatus,
-};
-
-export default formService;

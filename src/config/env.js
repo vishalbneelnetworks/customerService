@@ -14,4 +14,5 @@ export const env = {
     process.env.GRPC_COMPANY_SERVICE_HOST || "localhost",
   GRPC_COMPANY_SERVICE_PORT: process.env.GRPC_COMPANY_SERVICE_PORT || "50051",
   MONGO_URL: process.env.MONGO_URL || "mongodb://localhost:27017",
+  FORM_API_URL: process.env.FORM_API_URL || "http://localhost:3000/api/v1",
 };

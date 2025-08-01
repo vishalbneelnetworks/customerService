@@ -11,12 +11,14 @@ app.use(express.static("public"));
 app.use(correlationIdMiddleware);
 
 //imports
-import formRoutes from "./routes/form.route.js";
-import templateRoutes from "./routes/template.route.js";
+import tagsRoutes from "./routes/tags.route.js";
+import slabRoutes from "./routes/slab.route.js";
+import scoreRoutes from "./routes/score.route.js";
 
 //use
-app.use("/api/v1/forms", formRoutes);
-app.use("/api/v1/templates", templateRoutes);
+app.use("/api/v1/tags", tagsRoutes);
+app.use("/api/v1/slabs", slabRoutes);
+app.use("/api/v1/score", scoreRoutes);
 
 app.get("/", (req, res) => {
   res.status(200).json({

@@ -3,15 +3,13 @@ import { env } from "./config/env.js";
 import { connectDb } from "./db/connect.js";
 import { safeLogger } from "./config/logger.js";
 import { initializeRabbitMQ } from "./events/index.js";
-import { initializeGrpcServices } from "./grpc/index.js";
-import { stopMonitoring } from "./grpc/client/companyHealth.js";
 
 async function startServer() {
   try {
     await connectDb();
     safeLogger.info("✔️ Database connected");
 
-    await initializeGrpcServices();
+    // await initializeGrpcServices();
 
     // await initRedis();
     // safeLogger.info("✔️ Redis connection successful");

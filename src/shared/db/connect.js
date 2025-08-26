@@ -1,7 +1,7 @@
 import { Sequelize } from "sequelize";
 import { env } from "../config/env.js";
 import mongoose from "mongoose";
-import { DB_NAME } from "../constant.js";
+import { DB_NAME } from "../../constant.js";
 
 // export const sequelize = new Sequelize(
 //   env.DB_NAME,

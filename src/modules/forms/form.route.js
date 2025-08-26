@@ -6,18 +6,13 @@ import {
   updateFormController,
   deleteFormController,
   changeFormStatusController,
-  getFormsByProjectTypeController,
   submitFormController,
-} from "../controllers/form.controller.js";
+} from "./form.controller.js";
 
 const router = Router();
 
 router.get("/", getFormsController);
 router.get("/:formId", getFormByIdController);
-router.get(
-  ["/project-type/:projectType", "/project-type/:projectType/:subProjectType"],
-  getFormsByProjectTypeController
-);
 
 router.post("/", createFormController);
 router.patch("/:formId", updateFormController);

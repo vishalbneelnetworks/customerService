@@ -14,30 +14,57 @@ class RabbitMQConnection {
     this.retryMultiplier = rabbitMQConfig.retryMechanism.multiplier || 2;
   }
 
+  get isConnected() {
+    return this.connection !== null;
+  }
+
   async init() {
-    if (this.connection || this.isConnecting) return;
-    try {
-      this.isConnecting = true;
-      this.connection = await amqplib.connect(
-        rabbitMQConfig.url,
-        rabbitMQConfig.connectionOptions
-      );
+    if (this.connection) return;
 
-      this.reconnectAttempts = 0;
-      this.isConnecting = false;
+    for (let attempt = 1; attempt <= this.maxReconnectAttempts; attempt++) {
+      try {
+        this.isConnecting = true;
 
-      safeLogger.info("Successfully connected to RabbitMQ");
-      this._setupEventListeners();
-      await this._setupDeadLetterExchange();
-      await this._setupDefaultExchanges();
-      await this._setupDefaultQueues();
-    } catch (error) {
-      this.isConnecting = false;
-      safeLogger.error("Failed to connect to RabbitMQ", {
-        message: error.message,
-        stack: error.stack,
-      });
-      await this._handleReconnect();
+        safeLogger.info(
+          `Connecting to RabbitMQ (attempt ${attempt}/${this.maxReconnectAttempts})...`
+        );
+
+        this.connection = await amqplib.connect(
+          rabbitMQConfig.url,
+          rabbitMQConfig.connectionOptions
+        );
+
+        this.reconnectAttempts = 0;
+        this.isConnecting = false;
+
+        safeLogger.info("Successfully connected to RabbitMQ");
+        this._setupEventListeners();
+        await this._setupDeadLetterExchange();
+        await this._setupDefaultExchanges();
+        await this._setupDefaultQueues();
+
+        return; // Success - exit the retry loop
+      } catch (error) {
+        this.isConnecting = false;
+        this.connection = null;
+
+        safeLogger.error("Failed to connect to RabbitMQ", {
+          message: error.message,
+          stack: error.stack,
+        });
+
+        if (attempt >= this.maxReconnectAttempts) {
+          safeLogger.error(
+            `Failed to connect to RabbitMQ after ${this.maxReconnectAttempts} attempts`
+          );
+          throw error;
+        }
+
+        const delay =
+          this.reconnectInterval * Math.pow(this.retryMultiplier, attempt - 1);
+        safeLogger.info(`Retrying in ${delay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, delay));
+      }
     }
   }
 
@@ -56,12 +83,9 @@ class RabbitMQConnection {
     });
   }
 
-  // ... rest of the methods with similar logging pattern updates ...
-
   async _handleReconnect() {
     if (this.isConnecting) return;
 
-    // Close existing connection if any
     if (this.connection) {
       try {
         await this.connection.close();
@@ -71,7 +95,6 @@ class RabbitMQConnection {
       this.connection = null;
     }
 
-    // Close all channels
     for (const [name, channel] of this.channels.entries()) {
       try {
         await channel.close();
@@ -81,25 +104,11 @@ class RabbitMQConnection {
     }
     this.channels.clear();
 
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
-      this.reconnectAttempts++;
-      const delay =
-        this.reconnectInterval *
-        Math.pow(this.retryMultiplier, this.reconnectAttempts - 1);
-      safeLogger.info(
-        `Attempting to reconnect to RabbitMQ in ${delay}ms... (${this.reconnectAttempts}/${this.maxReconnectAttempts})`
-      );
-
-      setTimeout(() => {
-        this.init().catch((error) => {
-          safeLogger.error(`Reconnection attempt failed: ${error.message}`);
-        });
-      }, delay);
-    } else {
-      safeLogger.error(
-        `Failed to reconnect to RabbitMQ after ${this.maxReconnectAttempts} attempts`
-      );
-      // TODO: Implement circuit breaker or notify monitoring system (e.g., alert to Sentry)
+    try {
+      await this.init();
+      safeLogger.info("Successfully reconnected to RabbitMQ");
+    } catch (error) {
+      safeLogger.error("Failed to reconnect to RabbitMQ");
     }
   }
 
@@ -107,26 +116,23 @@ class RabbitMQConnection {
     const channel = await this.createChannel("dlx-setup");
 
     const { name, type, queue, routingKey, queueOptions } =
-      rabbitMQConfig.formSubmissionDeadLetterExchange;
+      rabbitMQConfig.deadLetterExchange;
 
-    // Create dead letter exchange
     await channel.assertExchange(name, type, {
       durable: true,
       autoDelete: false,
     });
 
-    // Create dead letter queue
     await channel.assertQueue(
       queue,
       queueOptions || {
         durable: true,
         arguments: {
-          "x-message-ttl": 7 * 24 * 60 * 60 * 1000, // 7 days fallback
+          "x-message-ttl": 7 * 24 * 60 * 60 * 1000,
         },
       }
     );
 
-    // Bind queue to exchange
     await channel.bindQueue(queue, name, routingKey);
 
     safeLogger.info(
@@ -180,9 +186,8 @@ class RabbitMQConnection {
     }
     if (this.channels.has(name)) {
       const channel = this.channels.get(name);
-      // Validate channel is still open
       try {
-        await channel.checkQueue(""); // Dummy check to verify channel
+        await channel.checkQueue("");
         return channel;
       } catch (error) {
         safeLogger.warn(`Channel '${name}' is invalid, recreating...`);
@@ -244,7 +249,7 @@ class RabbitMQConnection {
     const defaultOptions = {
       durable: true,
       deadLetterExchange: rabbitMQConfig.deadLetterExchange.name,
-      messageTtl: 86400000, // 24 hours
+      messageTtl: 86400000,
     };
 
     const queueResult = await channel.assertQueue(queueName, {
@@ -328,7 +333,7 @@ class RabbitMQConnection {
 
         try {
           const content = JSON.parse(msg.content.toString());
-          // Wrap callback in try-catch to handle sync errors
+
           await Promise.resolve(callback(content, msg, channel));
           if (!consumeOptions.noAck) {
             channel.ack(msg);

@@ -1,14 +1,13 @@
-import { ApiResponse } from "../utils/ApiResponse.js";
-import { asyncHandler } from "../utils/asyncHandler.js";
+import { ApiResponse } from "../../shared/utils/ApiResponse.js";
+import { asyncHandler } from "../../shared/utils/asyncHandler.js";
 import {
   createForm,
   getForms,
-  getFormsByProjectTypeOrSubProjectType,
-  updateForm,
   deleteForm,
   changeFormStatus,
   getFormById,
-} from "../services/form.service.js";
+  updateForm,
+} from "./form.service.js";
 
 export const createFormController = asyncHandler(async (req, res) => {
   const form = await createForm(req.body);
@@ -74,24 +73,3 @@ export const submitFormController = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, submittedForm, "Form submitted successfully"));
 });
-
-export const getFormsByProjectTypeController = asyncHandler(
-  async (req, res) => {
-    const { projectType, subProjectType } = req.params;
-    const response = await getFormsByProjectTypeOrSubProjectType(
-      projectType,
-      subProjectType,
-      req.query
-    );
-
-    return res
-      .status(200)
-      .json(
-        new ApiResponse(
-          200,
-          response,
-          `Forms for ${projectType} retrieved successfully`
-        )
-      );
-  }
-);

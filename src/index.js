@@ -1,23 +1,14 @@
 import app from "./app.js";
-import { env } from "./config/env.js";
-import { connectDb } from "./db/connect.js";
-import { safeLogger } from "./config/logger.js";
-import { initializeRabbitMQ } from "./events/index.js";
-import { initializeGrpcServices } from "./grpc/index.js";
-import { stopMonitoring } from "./grpc/client/companyHealth.js";
+import { env } from "./shared/config/env.js";
+import { connectDb } from "./shared/db/connect.js";
+import { safeLogger } from "./shared/config/logger.js";
+import { eventComponents } from "./shared/events/index.js";
 
 async function startServer() {
   try {
     await connectDb();
     safeLogger.info("✔️ Database connected");
-
-    // await initializeGrpcServices();
-
-    // await initRedis();
-    // safeLogger.info("✔️ Redis connection successful");
-
-    // await initializeRabbitMQ();
-    // safeLogger.info("✔️ RabbitMQ connection initialized");
+    await eventComponents.start();
 
     const server = app.listen(env.PORT, () => {
       safeLogger.info(`⚙️ Server is running on port ${env.PORT}`);
@@ -26,7 +17,7 @@ async function startServer() {
     const gracefulShutdown = async () => {
       safeLogger.info("🔻 Graceful shutdown initiated");
       await connectDb.close();
-      // stopMonitoring();
+      await eventComponents.shutdown();
       server.close(() => {
         safeLogger.info("🧹 Express server closed");
         process.exit(0);

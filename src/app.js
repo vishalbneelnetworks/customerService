@@ -1,14 +1,29 @@
 import express from "express";
-import cors from "cors";
-import { errorHandler } from "./shared/utils/errorHandler.js";
-// import { correlationIdMiddleware } from "./shared/middlewares/requestContext.js";
+import cookieParser from "cookie-parser";
+import {
+  correlationIdMiddleware,
+  enterpriseLoggingMiddleware,
+  enterpriseSecurityMiddleware,
+  enterpriseValidationMiddleware,
+  enterpriseErrorHandler,
+  enterpriseCorsMiddleware,
+  enterpriseRateLimit,
+} from "./shared/middlewares/enterprise.middleware.js";
 
 const app = express();
 
 app.use(express.json({ limit: "16kb" }));
 app.use(express.urlencoded({ limit: "16kb", extended: true }));
 app.use(express.static("public"));
-// app.use(correlationIdMiddleware);
+app.use(cookieParser());
+
+//  app.use(correlationIdMiddleware);
+// app.use(enterpriseLoggingMiddleware);
+// app.use(enterpriseRateLimit);
+// app.use(enterpriseSecurityMiddleware);
+// app.use(enterpriseValidationMiddleware);
+
+// app.use(enterpriseCorsMiddleware);
 
 //imports
 import formRoutes from "./modules/forms/index.js";
@@ -28,5 +43,5 @@ app.use((req, res) => {
   res.status(404).json({ message: "no route found" });
 });
 
-app.use(errorHandler);
+//  app.use(enterpriseErrorHandler);
 export default app;

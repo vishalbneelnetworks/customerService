@@ -14,4 +14,7 @@ export const env = {
     process.env.GRPC_COMPANY_SERVICE_HOST || "localhost",
   GRPC_COMPANY_SERVICE_PORT: process.env.GRPC_COMPANY_SERVICE_PORT || "50051",
   MONGO_URL: process.env.MONGO_URL || "mongodb://localhost:27017",
+  JWT_ISSUER:
+    process.env.JWT_ISSUER ||
+    "http://localhost:3001/api/v1/jwks/.well-known/jwks.json",
 };
